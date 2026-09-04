@@ -18,17 +18,22 @@
 -- Every statement is idempotent (IF NOT EXISTS / INSERT OR IGNORE), so it is
 -- safe to run this file again on an existing database.
 --
--- NOT A TAX INVOICE AND NOT CYLINDER TRACEABILITY. cash_log / cylinder_log
--- are the owner's local extract of what the driver typed on the Stop Record
+-- NOT A TAX INVOICE, NOT CYLINDER TRACEABILITY, AND NOT THE OFFICIAL
+-- PERTAMINA MAP / INDANE / CRE / DOE BOOK. cash_log / cylinder_log are the
+-- owner's local extract of what the driver typed on the Stop Record
 -- (date, stop, fulls in, empties out, paid). They are not an e-Faktur, CFDI,
--- factura, GST invoice, or a subsidized-cylinder serial log (MyPertamina and
--- equivalents). GPS proves the driver was at the door, not that a numbered
+-- factura, GST invoice, a subsidized-cylinder serial log, Pertamina MAP /
+-- MyPertamina subsidy recording, an Indane / Bharatgas / HP Gas portal,
+-- CRE volumetric / CFDI, a DOE LTO / RA 11592 registry, or a MITECO price
+-- filing. GPS proves the driver was at the door, not that a numbered
 -- bottle changed hands.
 --
--- PRIVACY: stops.access_notes (gate, dog, "call first") and
--- customers.deposit_notes (outstanding cylinder deposits) live ONLY in this
--- file on your computer. They are never sent to ZenSched. SKILL.md forbids
--- the agent from putting them in any ZenSched notes field.
+-- PRIVACY: customer names, phones, stops.access_notes (gate, dog,
+-- "call first") and customers.deposit_notes (outstanding cylinder deposits)
+-- live ONLY in this file on your computer. They are never sent to ZenSched.
+-- stops.stop_label is stop code + street (S-1 · Jl. Kemang Raya 12) — the
+-- only name sent to ZenSched. SKILL.md forbids the agent from putting
+-- names, phones, or notes in any ZenSched field.
 --
 -- CUSTOMERS → STOPS (places) → VISITS. Cadence lives on the stop so one
 -- account can have a daily warung and a weekly house. Daily stops expand
@@ -119,7 +124,7 @@ CREATE TABLE IF NOT EXISTS customers (
 CREATE TABLE IF NOT EXISTS stops (
   stop_id INTEGER PRIMARY KEY AUTOINCREMENT,
   customer_id INTEGER NOT NULL,
-  stop_label TEXT NOT NULL,                         -- 'Warung Bu Sari' — the name sent to ZenSched
+  stop_label TEXT NOT NULL,                         -- 'S-1 · Jl. Kemang Raya 12' — stop code + street; never the customer name; the only name sent to ZenSched
   address TEXT NOT NULL,
   address_line2 TEXT,
   city TEXT,
