@@ -4,7 +4,7 @@ Setup is about 15 minutes, once. After that everything is plain English to your 
 
 You need: Claude Desktop (or Cursor) and [Node.js LTS](https://nodejs.org/) installed. Nothing else.
 
-Before you start, read the "What this kit is not" section of `README.md`. Short version: this is GPS-verified door proof plus a local extract of fulls in, empties out, and paid. It is **not** a tax invoice and **not** a cylinder serial log.
+Before you start, read the "What this kit is not" section of `README.md`. Short version: this is GPS-verified door proof plus a local extract of fulls in, empties out, and paid. It is **not** a tax invoice, **not** a cylinder serial log, and **not** the official Pertamina MAP / Indane / CRE / DOE book.
 
 ## 1. Make a data folder
 
@@ -63,7 +63,7 @@ Paste `SKILL.md` into the AI as standing instructions (Claude Desktop: a Project
 
 The AI saves your settings (including `currency_code` / `currency_symbol` — local money stays in SQLite; ZenSched meters are always USD) and calls `form_create` once (free) to build the Stop Record your drivers fill in: cylinders delivered, empties collected, paid (Cash / Account / Unpaid), optional receipt photo (max 1). No signature. It stores the form id so every stop gets it.
 
-If you are in Mexico, Spain, the Philippines, or India, say so here and it will set `timezone_offset`, `currency_code`, and `currency_symbol`, then you edit the seeded 3 / 12 / 15 / 45 kg prices.
+If you are in Mexico, Spain, the Philippines, or India, say so here and it will set `timezone_offset`, `currency_code`, and `currency_symbol`, then you edit the seeded 3 / 12 / 15 / 45 kg prices. Indonesia, the Philippines, and India have no DST. Most of Mexico (including Mexico City) stays `-06:00` year-round after abolishing DST in 2022. Spain has DST (`+02:00` in summer, `+01:00` in winter) — tell the AI when clocks change.
 
 ## 6. Add your first two customers
 
@@ -71,7 +71,7 @@ If you are in Mexico, Spain, the Philippines, or India, say so here and it will 
 
 > Add Rumah Pak Andi, andi@example.com, 0813-555-0190, Jl. Metro Pondok Indah, Jakarta Selatan 12310. Weekly 12 kg Rp 185.000, Tuesday 2026-09-08 at 9. Deposit 2 tabung. Call from the gate.
 
-Behind the scenes the AI inserts each customer and stop, calls `location_create` (geocode, $0.03 USD, may trigger the $5 activation deposit the first time), creates a 60-day `event_create` for the place, attaches the Stop Record with `form_assign`, and saves the IDs. Gate / deposit notes go only into the local database. You just see a confirmation.
+Behind the scenes the AI inserts each customer and stop, calls `location_create` (geocode, $0.03 USD, may trigger the $5 activation deposit the first time), creates a 60-day `event_create` for the place, attaches the Stop Record with `form_assign`, and saves the IDs. The ZenSched location/event label is stop code + street (`S-1 · Jl. Kemang Raya 12`), never the customer name. Names, phones, gate notes, and deposits stay in the local database. You just see a confirmation.
 
 ## 7. Invite your driver
 
@@ -89,7 +89,7 @@ The AI reads `stops_due` (daily places already expand to one row per remaining d
 
 > Record this week's jobs, show me the cash log and the cylinder log, then draft invoices for anyone with uninvoiced work.
 
-The AI pulls the completed, GPS-verified shifts and the Stop Records from ZenSched (reading records is metered in USD, so it tells you the cost first), saves a per-visit summary in rupiah, advances Bu Sari by one day and Andi by seven, shows the cash and cylinder extracts (your copy, not a tax invoice), creates invoice records for Account / Unpaid only, and writes out each invoice as text you can paste into WhatsApp.
+The AI pulls the completed, GPS-verified shifts and the Stop Records from ZenSched (reading records is metered in USD, so it tells you the cost first), saves a per-visit summary in rupiah, advances Bu Sari by one day and Andi by seven, shows the cash and cylinder extracts (your copy, not a tax invoice and not your MAP / Indane / CRE / DOE book), creates invoice records for Account / Unpaid only, and writes out each invoice as text you can paste into WhatsApp.
 
 > Andi paid INV-2026-0001.
 

@@ -13,11 +13,12 @@ If you *are* a developer, skip to [For developers](#for-developers).
 **What it is not:**
 
 - **Not a tax invoice.** `cash_log` and the draft invoice text are *your* copy of what the driver typed (date, stop, fulls, empties, paid). They are not an Indonesian e-Faktur, not a Mexican CFDI, not a Spanish factura, not a Philippine OR, and not an Indian GST invoice. Your tax office still wants *their* document.
+- **Not the official Pertamina MAP / Indane / CRE / DOE book.** The Stop Record is proof-of-exchange for you and the customer. It is not Pertamina MAP / MyPertamina subsidy recording, not an Indane / Bharatgas / HP Gas OMC portal, not CRE volumetric or CFDI, not a DOE LTO or RA 11592 cylinder-swapping registry, and not a MITECO price filing. Keep those in the oil-company app or the permit binder. Do not tell an ESDM / CRE / DOE inspector "it's in ZenSched."
 - **Not cylinder track-and-trace.** The kit counts bottles. It does not store serial numbers, RFID, or subsidized-3 kg identity (MyPertamina and equivalents). GPS proves the driver was at the address, not that a numbered bottle changed hands.
 - **Not a signed legal receipt.** The Stop Record has no signature field. On ZenSched a signature field replaces the Submit button, so adding one would make every stop look like the customer had signed something. Submitting the form is just submitting the form.
 - **Not a route optimiser.** The AI sequences by the `stop_order` you give it. It does not solve a travelling-salesman loop.
 
-If any of those is a deal-breaker, this kit is not for you. If you want daily/weekly cadence, door-GPS, and a local extract you can file next to your real tax forms, read on.
+If any of those is a deal-breaker, this kit is not for you. If you want daily/weekly cadence, door-GPS, and a local extract you can file next to your real tax forms and official MAP / OMC / CRE / DOE book, read on.
 
 ## What lives where
 
@@ -47,7 +48,7 @@ If any of those is a deal-breaker, this kit is not for you. If you want daily/we
 
 ### Privacy note
 
-Gate codes, dogs, "call first" instructions, and outstanding cylinder deposits are stored only in `stops.access_notes` and `customers.deposit_notes` in the local database. `SKILL.md` forbids the AI from putting them into any ZenSched field. Give them to your driver yourself, by whatever channel you trust. ZenSched only ever sees the street address and the GPS pin.
+Customer names, phones, gate codes, dogs, "call first" instructions, and outstanding cylinder deposits stay in the local database (`customers.customer_name` / phones, `stops.access_notes`, `customers.deposit_notes`). `SKILL.md` forbids the AI from putting them into any ZenSched field. The location name and event title are **stop code + street** (`S-1 · Jl. Kemang Raya 12`), never the customer name. Give gate/deposit notes to your driver yourself, by whatever channel you trust. ZenSched only ever sees the stop code, the street address, and the GPS pin.
 
 ## How it works day to day
 
@@ -184,15 +185,15 @@ When you invite a driver, they get an email, install the app, and can immediatel
 | `SQLITE_PATH` points nowhere / "unable to open database" | Folder from step 1 does not exist | Create the folder; the file is created automatically but the folder is not |
 | ZenSched tools return an auth error | Key still says `zsc_your_key_here`, or was pasted with a space | Re-paste the key, restart |
 | `payment_required` | Metered call with no balance | Follow the instructions in the response; $5 deposit (USD) |
-| AI creates shifts at the wrong hour | Timezone not set | "Set my timezone offset to +07:00 in settings" (use your own offset: `-06:00` MX, `+02:00` ES, `+08:00` PH, `+05:30` IN) |
+| AI creates shifts at the wrong hour | Timezone not set, or a DST book still on last season's offset | "Set my timezone offset to +07:00 in settings." ID / PH / IN have no DST. Most of Mexico (incl. CDMX) abolished DST in 2022 and stays `-06:00`; Baja California and some border municipios still change. Spain has DST: `+02:00` late March–late October, `+01:00` the rest — refresh the setting when clocks change or autumn shifts land an hour off. |
 | Invoices show the wrong symbol | Currency not set | "Set currency to MXN / $" (or EUR / €, PHP / ₱, INR / ₹) |
 | Shift creation fails for dates a couple of months out | The stop's 60-day ZenSched event has expired | Say "renew the events"; the AI runs the roll-over in `SKILL.md` and retries |
 | Driver's check-in not GPS-verified at a house | Geocoded pin is at the avenue, driver is in the alley, or a large compound | Ask the AI to widen `checkin_radius_m` with `policy_update` (not on the location), or run `location_update` / `location_refine` ($0.10) |
-| Driver does not see the Stop Record | Form not assigned to that place's event | "Attach the Stop Record to Bu Sari's event" (`form_assign`) |
+| Driver does not see the Stop Record | Form not assigned to that place's event | "Attach the Stop Record to that stop's event" (`form_assign` with `event_id`). That installs the form on **existing** shifts — do not cancel and recreate the shift. |
 | "Cash log" comes back empty | Visits not recorded yet, or the driver marked Account / Unpaid | "Record today's route" first; only `paid = Cash` rows appear |
 | AI asks you to run SQL yourself | It does not have `SKILL.md` loaded | Re-paste `SKILL.md` as project instructions |
 | AI refuses to put a pager code in ZenSched | Working as intended | Give it to the driver directly |
-| AI offers an e-Faktur, CFDI, or bottle serial report | It shouldn't | This kit does not produce those; use your tax / subsidy system |
+| AI offers an e-Faktur, CFDI, bottle serial report, or MAP / Indane / CRE / DOE filing | It shouldn't | This kit does not produce those; use your tax / subsidy / official-portal system |
 
 If something is confusing or broken in ZenSched itself, ask the AI to call `feedback_submit` with a description. It is free, needs no account, and a human reads every submission.
 
@@ -203,8 +204,8 @@ If something is confusing or broken in ZenSched itself, ask the AI to call `feed
 **Data model decisions.**
 
 - **Customers → stops (places) → visits.** Cadence and the pin live on the stop so one account can have a daily warung and a weekly house.
-- One ZenSched **location** per stop, permanent, stored on `stops.zensched_location_id` as an integer. Created with `location_create(name, street_address=..., checkin_radius_m=75, idempotency_key=...)`. `checkin_radius_m` on `location_create` is informational; the enforced radius is `policy_update(0, '{"checkin_radius_m": N}')`, and with geofencing on the platform raises values under 100 m to 300 ft.
-- **Events are capped at 60 days by ZenSched**, so an event cannot be a permanent job template. Each stop holds its *current* event in `stops.zensched_event_id` and its last covered date in `stops.event_valid_until`. The agent creates a new event (`event_create(location_id, title="LPG - <stop_label>", start_date, end_date=start+59 days, idempotency_key="event-stop-{stop_id}-{YYYYMMDD}")`) whenever a shift date is later than `event_valid_until`, calls `form_assign(form_id, event_id=...)` on it, and updates the row. `stops_due` exposes `event_needs_roll` per row and `events_expiring` lists stops due for renewal within 14 days. Shifts already created on the old event remain valid. When recording a completed visit whose `event_id` no longer matches a stop, the agent falls back to `event_get(event_id).location_id` against `stops.zensched_location_id`. A daily stop is ~60 punches per window.
+- One ZenSched **location** per stop, permanent, stored on `stops.zensched_location_id` as an integer. Created with `location_create(name, street_address=..., checkin_radius_m=75, idempotency_key=...)`. **`name` is `stops.stop_label` = stop code + street** (`S-1 · Jl. Kemang Raya 12`), never the customer name. `checkin_radius_m` on `location_create` is informational; the enforced radius is `policy_update(0, '{"checkin_radius_m": N}')`, and with geofencing on the platform raises values under 100 m to 300 ft.
+- **Events are capped at 60 days by ZenSched**, so an event cannot be a permanent job template. Each stop holds its *current* event in `stops.zensched_event_id` and its last covered date in `stops.event_valid_until`. The agent creates a new event (`event_create(location_id, title="LPG - <stop_label>", start_date, end_date=start+59 days, idempotency_key="event-stop-{stop_id}-{YYYYMMDD}")`) whenever a shift date is later than `event_valid_until`, calls `form_assign(form_id, event_id=...)` on it (that also installs the form on existing shifts — do not cancel/recreate), and updates the row. `stops_due` exposes `event_needs_roll` per row and `events_expiring` lists stops due for renewal within 14 days. Shifts already created on the old event remain valid. When recording a completed visit whose `event_id` no longer matches a stop, the agent falls back to `event_get(event_id).location_id` against `stops.zensched_location_id`. A daily stop is ~60 punches per window.
 - **Cadence is daily / weekly / on-demand.** `stops.service_frequency` is `daily | weekly | on-demand`. `stops_due` uses `date('now','localtime')` and a `date_offsets` spine (0..6): daily stops emit one row per remaining day in today..today+6 on or after `next_service_date`; weekly / on-demand emit a single row on `next_service_date` if it is within 7 days. Each row carries `visit_date`, `start_iso` / `end_iso`, and the shift `idempotency_key`.
 - **The `advance_service_date_on_visit` trigger** sets `last_service_date` and `next_service_date` on every visit insert: **+1 day** / +7 days / NULL. Recording a one-off on a recurring stop also moves the cadence; `SKILL.md` tells the agent to set the date back if the owner says so.
 - **`update_float_on_visit`** adds `delivered − empties` to `stops.float_cylinders`. `float_watch` lists stops whose float is not zero.
@@ -214,7 +215,7 @@ If something is confusing or broken in ZenSched itself, ask the AI to call `feed
 - `fill_visit_driver` sets `driver_id` from `zensched_worker_id` when the agent leaves it NULL. `fill_visit_duration_*` fills minutes from punches.
 - `invoices.invoice_number` is auto-assigned by trigger as `{prefix}-{YYYY}-{0001}`. Cash visits are omitted from `visits_to_invoice`.
 - **`cash_log` / `cylinder_log` / `unpaid_flags`** are views over recorded visits. They do not transmit anything and are not a tax form.
-- `stops.access_notes` and `customers.deposit_notes` are the columns that must never be sent to ZenSched; `SKILL.md` rule 6 enforces it. `stops_due` still *selects* `access_notes` so the agent can tell the owner to pass them to the driver.
+- `stops.access_notes`, `customers.deposit_notes`, `customers.customer_name`, and phones are the columns that must never be sent to ZenSched; `SKILL.md` rule 6 enforces it. `stop_label` is stop code + street after insert (`UPDATE … SET stop_label = 'S-' || stop_id || ' · ' || address`). `stops_due` still *selects* `access_notes` and `customer_name` so the agent can talk to the owner; those must never go into a ZenSched field.
 - `PRAGMA foreign_keys = ON` is in `schema.sql` and `SKILL.md` tells the agent to run it per session; SQLite does not persist it.
 
 **Stop Record form.** Created once with `form_create(title, fields_json, idempotency_key="form-stop-record")`; the exact `fields_json` is in `SKILL.md` and `example-workflow.md` (byte-identical) and was validated against ZenSched's `_validate_fields`. Every field carries an explicit `identifier` so submission `data` keys are stable (`cylinders_delivered`, `empties_collected`, `paid`, `receipt`; section `sec_stop`). Option keys are derived by ZenSched from the labels (lowercase, non-alphanumerics → `_`, truncated at 30 characters); `Cash` / `Account` / `Unpaid` become `cash` / `account` / `unpaid`. **No `signature` field** — the phone keeps a Submit button, and submitting is not a legal attestation. Attaching is `form_assign(form_id, event_id=...)`.
@@ -223,13 +224,14 @@ If something is confusing or broken in ZenSched itself, ask the AI to call `feed
 
 - location: `loc-stop-{stop_id}`
 - event: `event-stop-{stop_id}-{YYYYMMDD window start}`
-- shift: `shift-stop-{stop_id}-{YYYYMMDD}`
+- shift: `shift-stop-{stop_id}-{YYYYMMDD}` for the first visit that day; a same-day extra or a driver swap after `shift_cancel` appends `-2`, then `-3`, … — never reuse a cancelled key (24-hour replay would return the cancelled shift)
 - worker: `worker-{email}`
 - form: `form-stop-record`; assignment: `assign-stop-record-{event_id}`
+- cancel: `cancel-shift-{shift_id}`
 
-ZenSched caches idempotent responses for 24 hours.
+ZenSched caches idempotent responses for 24 hours. `form_assign(event_id)` installs the Stop Record on existing shifts; do not cancel and recreate to attach it.
 
-**Timestamps.** `shift_create` takes `start` and `end` in ISO 8601 with an explicit offset. Always use the business's local offset from `settings.timezone_offset` (e.g. `2026-09-07T07:00:00+07:00`), never `Z`. The view builds these strings so the agent does not have to.
+**Timestamps.** `shift_create` takes `start` and `end` in ISO 8601 with an explicit offset. Always use the business's local offset from `settings.timezone_offset` (e.g. `2026-09-07T07:00:00+07:00`), never `Z`. The view builds these strings so the agent does not have to. ID / PH / IN have no DST. Most of Mexico stays `-06:00` after the 2022 abolition (Baja California and some border municipios still change). Spain switches `+02:00` / `+01:00` — refresh `timezone_offset` when clocks change.
 
 **Metered reads.** `form_submissions` and `form_export` bill $0.05 per submission read ($0.15 with media); `form_export` is preferred for a day or a week at a time. The kit stores the summary and media URLs on `visits` on first read so later cash-log questions are answered from SQLite. `shift_list`, `shift_status`, `event_get`, and `timesheet_export(mode="hours"|"raw")` are free.
 

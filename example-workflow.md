@@ -8,7 +8,7 @@ Shop: **Gas Jaya**, Jakarta, Indonesia, Western Indonesia Time (`+07:00`). Local
 
 ZenSched meters in the billing blobs are **USD**. They are never written into `lpg-ops.db`.
 
-Access notes (gate, dog) and deposit notes stay in SQLite. They are never sent to ZenSched.
+Access notes (gate, dog), deposit notes, customer names, and phones stay in SQLite. ZenSched location/event labels are stop code + street (`S-1 · Jl. Kemang Raya 12`), never the customer name. This is not the official Pertamina MAP / Indane / CRE / DOE book.
 
 ## Session start (every session)
 
@@ -32,7 +32,7 @@ sqlite_execute: UPDATE settings SET value = 'IDR' WHERE key = 'currency_code';
 sqlite_execute: UPDATE settings SET value = 'Rp' WHERE key = 'currency_symbol';
 ```
 
-> Saved. I'll schedule everything in WIB (+07:00) and show prices in rupiah. You don't have a Stop Record form yet; it's free to create and every stop will come back with fulls delivered, empties collected, paid (Cash / Account / Unpaid), and an optional receipt photo. No signature — this is an internal stop record, not a tax invoice. Want me to set it up now?
+> Saved. I'll schedule everything in WIB (+07:00, Indonesia has no DST) and show prices in rupiah. You don't have a Stop Record form yet; it's free to create and every stop will come back with fulls delivered, empties collected, paid (Cash / Account / Unpaid), and an optional receipt photo. No signature — this is an internal stop record, not a tax invoice and not your MAP / Indane / CRE / DOE book. Want me to set it up now?
 
 Owner: *"yes"*
 
@@ -78,12 +78,16 @@ sqlite_execute:
   INSERT INTO stops (customer_id, stop_label, address, city, state, zip, country,
                      access_notes, route_label, stop_order, cylinder_type_id,
                      unit_price, service_frequency, next_service_date, preferred_start)
-  VALUES (1, 'Warung Bu Sari', 'Jl. Kemang Raya 12', 'Jakarta Selatan', 'DKI Jakarta',
+  VALUES (1, 'Jl. Kemang Raya 12', 'Jl. Kemang Raya 12', 'Jakarta Selatan', 'DKI Jakarta',
           '12730', 'ID',
           'Pager 3319. Anjing di belakang — panggil dulu.',
           'North loop', 1, 1,
           20000, 'daily', '2026-09-07', '07:00');
   → lastInsertRowid = 1
+
+sqlite_execute:
+  UPDATE stops SET stop_label = 'S-' || stop_id || ' · ' || address WHERE stop_id = 1;
+  → stop_label = 'S-1 · Jl. Kemang Raya 12'
 ```
 
 Agent (first metered call this session, rule 11):
@@ -94,7 +98,7 @@ Owner: *"yes"*
 
 ```
 location_create:
-  name: "Warung Bu Sari"
+  name: "S-1 · Jl. Kemang Raya 12"
   street_address: "Jl. Kemang Raya 12, Jakarta Selatan, DKI Jakarta 12730, ID"
   checkin_radius_m: 75
   idempotency_key: "loc-stop-1"
@@ -102,12 +106,12 @@ location_create:
     billing: { meter: "geocode", units: 1, price: 0.03 }
 ```
 
-The pager code is **not** in `notes`. It lives only in `stops.access_notes`. `checkin_radius_m` on the location is informational; the enforced radius is the policy (see later if Budi misses a punch).
+The pager code and the customer name are **not** in `name` or `notes`. The name is stop code + street. The pager lives only in `stops.access_notes`. `checkin_radius_m` on the location is informational; the enforced radius is the policy (see later if Budi misses a punch).
 
 ```
 event_create:
   location_id: 9201
-  title: "LPG - Warung Bu Sari"
+  title: "LPG - S-1 · Jl. Kemang Raya 12"
   start_date: "2026-09-07"
   end_date:   "2026-11-05"          ← start + 59 days (60-day cap)
   idempotency_key: "event-stop-1-20260907"
@@ -145,15 +149,19 @@ sqlite_execute:
   INSERT INTO stops (customer_id, stop_label, address, city, state, zip, country,
                      access_notes, route_label, stop_order, cylinder_type_id,
                      unit_price, service_frequency, next_service_date, preferred_start)
-  VALUES (2, 'Rumah Pak Andi', 'Jl. Metro Pondok Indah', 'Jakarta Selatan',
+  VALUES (2, 'Jl. Metro Pondok Indah', 'Jl. Metro Pondok Indah', 'Jakarta Selatan',
           'DKI Jakarta', '12310', 'ID',
           'Call from the gate. No street parking 7–9.',
           'North loop', 2, 2,
           185000, 'weekly', '2026-09-08', '09:00');
   → lastInsertRowid = 2
 
+sqlite_execute:
+  UPDATE stops SET stop_label = 'S-' || stop_id || ' · ' || address WHERE stop_id = 2;
+  → stop_label = 'S-2 · Jl. Metro Pondok Indah'
+
 location_create:
-  name: "Rumah Pak Andi"
+  name: "S-2 · Jl. Metro Pondok Indah"
   street_address: "Jl. Metro Pondok Indah, Jakarta Selatan, DKI Jakarta 12310, ID"
   checkin_radius_m: 75
   idempotency_key: "loc-stop-2"
@@ -161,7 +169,7 @@ location_create:
 
 event_create:
   location_id: 9202
-  title: "LPG - Rumah Pak Andi"
+  title: "LPG - S-2 · Jl. Metro Pondok Indah"
   start_date: "2026-09-08"
   end_date:   "2026-11-06"
   idempotency_key: "event-stop-2-20260908"
@@ -299,7 +307,9 @@ form_export:
         media: [] },
       { submission_id: 5502, worker_id: 701, event_id: 7202, submitted_at: "2026-09-08 09:09:40",
         data: { cylinders_delivered: 1, empties_collected: 1, paid: "account" },
-        media: [ { cdn_url: "https://cdn.zensched.com/m/.../r1.jpg" } ] }
+        media: [ { field_id: 12, cdn_url: "https://cdn.zensched.com/m/.../r1.jpg",
+                   thumbnail_url: "https://cdn.zensched.com/m/.../r1_th.jpg",
+                   original_filename: "seal.jpg" } ] }
     ]
     billing: { meter: "form_basic+form_media", units: 2, price: 0.20 }
 
@@ -355,7 +365,7 @@ sqlite_query: SELECT * FROM cylinder_log WHERE completed_date BETWEEN '2026-09-0
     2026-09-08 | Rumah Pak Andi | 12kg | 1 / 1 | net 0 | Account | Rp 185000
 ```
 
-> Your copy from the Stop Record — not a tax invoice and not a bottle serial log:
+> Your copy from the Stop Record — not a tax invoice, not a bottle serial log, and not your MAP / Indane / CRE / DOE book:
 >
 > Cash: Sep 7, Bu Sari, 2 full / 2 empty, Rp 40.000, Budi.
 >
@@ -402,7 +412,7 @@ The agent then writes the invoice out as text:
 > Visit GPS-verified at the door.
 > ```
 >
-> This is not an e-Faktur. Say "sent" when it's out.
+> This is not an e-Faktur and not a MAP / Indane / CRE / DOE filing. Say "sent" when it's out.
 
 ## "Sent. Andi already paid."
 
@@ -421,7 +431,7 @@ sqlite_query: SELECT * FROM stops_due WHERE visit_date = date('now', 'localtime'
 
 event_create:
   location_id: 9201
-  title: "LPG - Warung Bu Sari"
+  title: "LPG - S-1 · Jl. Kemang Raya 12"
   start_date: "2026-11-07"
   end_date:   "2027-01-05"
   idempotency_key: "event-stop-1-20261107"
